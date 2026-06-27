@@ -69,6 +69,9 @@ GN22_ELEMENTS = [
     "shoulder",
 ]
 
+CRITICAL_SEVERITY_GRADES = {"C", "D", "E"}
+ARL_THRESHOLD = 10
+
 # Column order for the Excel spreadsheet
 COLUMN_ORDER = [
     # Identity
@@ -341,11 +344,83 @@ def create_excel_report(assets: list[dict], output_path: Path) -> None:
     # Step 6: Freeze the header row so it stays visible when scrolling
     worksheet.freeze_panes = "A2"
 
-    # Step 7: Save the workbook to disk
+    # Step 7: Build the Critical Assets tab
+    critical_assets = _identify_critical_assets(sorted_assets)
+    if critical_assets:
+        _create_critical_tab(workbook, critical_assets, headers)
+
+    # Step 8: Save the workbook to disk
     workbook.save(output_path)
     print(f"\nExcel report saved to: {output_path}")
     print(f"  Rows: {len(sorted_assets)} assets")
     print(f"  Columns: {len(headers)}")
+    print(f"  Critical assets: {len(critical_assets)}")
+
+
+def _identify_critical_assets(assets: list[dict]) -> list[dict]:
+    """Identify assets with % Loss Max >= 30%, indicating Amber or lower structure.
+
+    These columns require examination and replacement.
+
+    Args:
+        assets: The full list of parsed asset dictionaries.
+
+    Returns:
+        A list of critical asset dicts sorted by % Loss Max descending.
+    """
+
+    critical = []
+    for asset in assets:
+        loss_max_raw = asset.get("% Loss Max", "").strip().replace("%", "").strip()
+        if not loss_max_raw:
+            continue
+        try:
+            loss_max = float(loss_max_raw)
+        except ValueError:
+            continue
+        if loss_max >= 30:
+            flagged = dict(asset)
+            flagged["% Loss Max (value)"] = loss_max
+            critical.append(flagged)
+
+    critical.sort(key=lambda a: a["% Loss Max (value)"], reverse=True)
+    return critical
+
+
+def _create_critical_tab(workbook: Workbook, critical_assets: list[dict], base_headers: list[str]) -> None:
+    """Create a 'Critical Assets' tab with flagged assets sorted by severity.
+
+    Args:
+        workbook: The openpyxl Workbook to add the tab to.
+        critical_assets: List of flagged asset dicts with "Flags" field.
+        base_headers: The standard column headers from the main report.
+    """
+
+    ws = workbook.create_sheet("Critical Assets - Replace")
+
+    headers = list(base_headers)
+
+    header_font = Font(name="Calibri", bold=True, color="FFFFFF", size=11)
+    header_fill = PatternFill(start_color="C00000", end_color="C00000", fill_type="solid")
+    header_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+    for col_index, header in enumerate(headers, start=1):
+        cell = ws.cell(row=1, column=col_index, value=header)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_alignment
+
+    data_alignment = Alignment(vertical="top", wrap_text=True)
+    for row_index, asset in enumerate(critical_assets, start=2):
+        for col_index, header in enumerate(headers, start=1):
+            value = asset.get(header, "")
+            cell = ws.cell(row=row_index, column=col_index, value=value)
+            cell.alignment = data_alignment
+
+    _auto_fit_columns(ws, headers)
+    ws.freeze_panes = "A2"
+
+    print(f"\n  Critical Assets tab: {len(critical_assets)} columns require replacement (% Loss Max >= 30%)")
 
 
 def _auto_fit_columns(worksheet, headers: list[str]) -> None:
