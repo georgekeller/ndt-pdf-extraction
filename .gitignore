@@ -1,0 +1,22 @@
+# Generated files
+asset_report.xlsx
+~$*
+
+# Installers
+*.exe
+
+# Source PDFs (binary, too large for git)
+*.pdf
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual environment
+venv/
+.venv/
+
+# IDE
+.vscode/
+.idea/
