@@ -36,16 +36,27 @@ The pipeline runs as two sequential Python scripts:
   - **GN22 element blocks**: element name followed by severity, extent, and multi-line comment
 - GN22 element comments run until the next known element name or section boundary
 - Inspector comments (lines starting with `- `) are joined with ` | ` separators
-- Outputs `asset_report.xlsx` with 53 columns, styled headers, frozen top row, auto-fitted widths
+- Outputs `asset_report.xlsx` with two tabs:
+  - **Asset Report** — all assets, 53 columns, styled headers (dark blue), frozen top row, auto-fitted widths
+  - **Critical Assets - Replace** — assets with `% Loss Max >= 30%`, indicating Amber or lower structural condition requiring examination and column replacement. Sorted by % Loss Max descending (worst first). Red headers to distinguish from main report.
+
+### Step 3 (optional): `generate_test_data.py` — Synthetic data generator
+
+- Generates 2000 realistic synthetic NDT/Colcheck entries for testing
+- Mimics the exact text format that `pdf_to_json.py` produces
+- Randomises across 30 streets, 10 wards, 5 column types, 4 materials, varied thickness/loss values, GN22 severity grades, and inspector comments
+- Merges synthetic entries into the existing `output.json` (preserving real data)
+- Useful for stress-testing the Excel pipeline and validating the critical assets filter
 
 ## File Inventory
 
 | File | Purpose |
 |------|---------|
 | `pdf_to_json.py` | Script 1: PDF text extraction to JSON |
-| `json_to_excel.py` | Script 2: JSON parsing to formatted Excel |
+| `json_to_excel.py` | Script 2: JSON parsing to formatted Excel (both tabs) |
+| `generate_test_data.py` | Script 3 (optional): Synthetic data generator for testing |
 | `output.json` | Intermediate: raw text per PDF page (generated) |
-| `asset_report.xlsx` | Final output: structured Excel report (generated) |
+| `asset_report.xlsx` | Final output: structured Excel report with 2 tabs (generated) |
 | `*.pdf` | Source: NDT/Colcheck rPec inspection reports |
 
 ## Dependencies
@@ -65,11 +76,26 @@ Python 3.10+ required (uses `list[str]` type hint syntax).
 # Step 1: Extract text from all PDFs into output.json
 python pdf_to_json.py
 
-# Step 2: Parse JSON and generate asset_report.xlsx
+# Step 2: Parse JSON and generate asset_report.xlsx (with Critical Assets tab)
 python json_to_excel.py
+
+# Optional: Generate 2000 synthetic test entries into output.json
+python generate_test_data.py
 ```
 
 Both scripts auto-detect their working directory (same folder as the script). Drop new PDFs into the folder and re-run both scripts to include them.
+
+## Critical Assets Logic
+
+Assets are flagged for the **"Critical Assets - Replace"** tab when:
+
+- **% Loss Max >= 30%** — indicates the column has Amber or lower structural integrity
+
+These columns require physical examination and replacement. The tab is sorted by % Loss Max descending so the most deteriorated columns appear first, enabling prioritised scheduling of replacement works.
+
+## GitHub Repository
+
+Hosted at: `https://github.com/georgekeller/ndt-pdf-extraction`
 
 ## JSON Structure (output.json)
 
@@ -120,8 +146,13 @@ Both scripts auto-detect their working directory (same folder as the script). Dr
 
 ## Current Data
 
-10 NDT/Colcheck reports for street lighting columns:
+**Real data (10 entries):**
 - 9 on Gipsy Hill (C0606-01 through C0606-05, C0606-07 through C0606-10)
 - 1 on Camden Hill Road (C0606-06) — this is the one with `ARL = --` and `[AMBER]` foundation warning
 - All tested on 2026-05-14, all CD - Decorative steel columns, commission date 2007-06-27
 - Ward: L1 Gipsy Hill
+
+**Synthetic data (2000 entries):**
+- Asset IDs 400000–401999, spread across 30 streets and 10 wards
+- Randomised column types, materials, thickness/loss values, conditions, and GN22 assessments
+- Used for testing pipeline scalability and validating the critical assets filter
